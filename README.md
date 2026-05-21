@@ -116,6 +116,4 @@ If the face is detected, landmarks are visible, and the EAR value updates live, 
 - If `mp.solutions` gives an error, check that you are using the correct virtual environment and Python 3.12.
 - Low lighting can reduce landmark accuracy. A front-facing light improves detection.
 
-## Author
 
-Krishna
