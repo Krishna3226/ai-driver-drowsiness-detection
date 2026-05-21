@@ -10,10 +10,13 @@
  - Map landmark indices for eyes and lips
  - HUD overlay: FPS counter, landmark dots, eye/mouth boxes
 =============================================================
+<<<<<<< HEAD
 DAY3 
 - EAR calculation from eye landmarks
 - Clock based Drowsiness Alert when EAR stays LOW
 =============================================================
+=======
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 """
 
 import cv2
@@ -41,11 +44,14 @@ LIPS      = [61, 146, 91, 181, 84, 17, 314, 405,
 # Nose tip — used later for head pose (PnP)
 NOSE_TIP  = 1
 
+<<<<<<< HEAD
 # EAR THRESHOLDS
 EAR_THRESHOLD= 0.18
 MICROSLEEP_THRESHOLD=0.10
 DROWSY_SECONDS=1.5
 
+=======
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 # ──────────────────────────────────────────────────────────
 # THREAD 1 — SENSOR INGESTION HANDLER
 # Captures raw frames, downscales to 480p, pushes to queue
@@ -112,6 +118,7 @@ def lm_to_px(landmark, w, h):
     """Convert MediaPipe normalised landmark → (x, y) pixel tuple."""
     return int(landmark.x * w), int(landmark.y * h)
 
+<<<<<<< HEAD
 def euclidean_distance(p1,p2):
     return np.linalg.norm(np.array(p1)-np.array(p2))
 
@@ -126,6 +133,8 @@ def eye_aspect_ratio(landmarks,eye_indices,w,h):
         return 0.0
     
     return(vertical_1+vertical_2)/(2.0*horizontal) 
+=======
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 
 # ──────────────────────────────────────────────────────────
 # HELPER: draw a labelled landmark group
@@ -164,7 +173,11 @@ def draw_bbox(frame, pts, color, padding=4):
 # HUD OVERLAY
 # ──────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 def draw_hud(frame, fps, face_detected, w, h,driver_state="NORMAL"):
+=======
+def draw_hud(frame, fps, face_detected, w, h):
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
     # Semi-transparent top bar
     overlay = frame.copy()
     cv2.rectangle(overlay, (0, 0), (w, 38), (15, 15, 30), -1)
@@ -180,6 +193,7 @@ def draw_hud(frame, fps, face_detected, w, h,driver_state="NORMAL"):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, fps_color, 1, cv2.LINE_AA)
 
     # Face detection status
+<<<<<<< HEAD
 
     # driver_state = 'NORMAL'
     if not face_detected:
@@ -204,6 +218,20 @@ def draw_hud(frame, fps, face_detected, w, h,driver_state="NORMAL"):
     # # Day label
     # cv2.putText(frame, "DAY 1-2: TOPOLOGY", (w - 175, h - 10),
     #             cv2.FONT_HERSHEY_SIMPLEX, 0.42, (150, 150, 150), 1, cv2.LINE_AA)
+=======
+    status_text  = "FACE DETECTED" if face_detected else "NO FACE — INTERLOCK"
+    status_color = (0, 220, 120)   if face_detected else (0, 60, 220)
+    overlay2 = frame.copy()
+    bar_color = (20, 60, 20) if face_detected else (20, 20, 120)
+    cv2.rectangle(overlay2, (0, h - 32), (w, h), bar_color, -1)
+    cv2.addWeighted(overlay2, 0.75, frame, 0.25, 0, frame)
+    cv2.putText(frame, status_text, (10, h - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_color, 1, cv2.LINE_AA)
+
+    # Day label
+    cv2.putText(frame, "DAY 1-2: TOPOLOGY", (w - 175, h - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (150, 150, 150), 1, cv2.LINE_AA)
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 
 
 # ──────────────────────────────────────────────────────────
@@ -227,8 +255,11 @@ def main():
     fps_timer   = time.time()
     fps_counter = 0
     fps_display = 0.0
+<<<<<<< HEAD
     eye_closed_since=None
     drowsy_alert=False
+=======
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 
     while True:
         frame = capture.get_frame()
@@ -250,9 +281,12 @@ def main():
         result = face_mesh.process(rgb)
 
         face_detected = result.multi_face_landmarks is not None
+<<<<<<< HEAD
         avg_ear = None
         eye_state = "NO FACE"
         closed_duration=0.0
+=======
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 
         if face_detected:
             lms = result.multi_face_landmarks[0].landmark
@@ -278,6 +312,7 @@ def main():
             draw_bbox(frame, le_pts, (0, 200, 100))
             draw_bbox(frame, re_pts, (0, 200, 100))
 
+<<<<<<< HEAD
             left_ear=eye_aspect_ratio(lms,LEFT_EYE,w,h)
             right_ear=eye_aspect_ratio(lms,RIGHT_EYE,w,h)
             avg_ear=(left_ear+right_ear)/2.0
@@ -293,6 +328,8 @@ def main():
                 drowsy_alert=False
                 eye_state="EYES OPEN"
 
+=======
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
             # ── Mouth landmarks (MAR points — used from Day 4) ──
             m_pts = draw_landmark_group(
                 frame, lms, LIPS, w, h,
@@ -308,6 +345,7 @@ def main():
 
             # ── Info panel (right side) ──────────────────────
             info_lines = [
+<<<<<<< HEAD
                                 
                 ("468 landmarks: OK",  (0, 220, 120)),
                 (f"EAR: {avg_ear:.2f}", (0, 220, 120) if avg_ear >= EAR_THRESHOLD else (0, 165, 255)),
@@ -315,6 +353,14 @@ def main():
                 (f"Closed: {closed_duration:.1f}s", (150, 150, 150)),
                 ("DROWSY ALERT" if drowsy_alert else "Status: normal",
                  (0, 60, 220) if drowsy_alert else (0, 220, 120))
+=======
+                ("DAY 1-2 COMPLETE",   (200, 200, 200)),
+                ("468 landmarks: OK",  (0, 220, 120)),
+                ("Eye indices: ready", (0, 220, 120)),
+                ("Mouth indices: ready",(0, 165, 255)),
+                ("Nose tip: ready",    (200, 80, 255)),
+                ("Next: EAR (Day 3)",  (150, 150, 150)),
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
             ]
             panel_x = w - 200
             panel_y = 50
@@ -329,6 +375,7 @@ def main():
                             (panel_x, panel_y + i * 20),
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.38, col, 1, cv2.LINE_AA)
+<<<<<<< HEAD
             if drowsy_alert:
                 cv2.putText(frame,"DROWSY ALERT",
                             (w//2-120,75),
@@ -344,6 +391,13 @@ def main():
                  "DROWSY" if drowsy_alert else eye_state)
 
         cv2.imshow("AI Driver Monitoring ", frame)
+=======
+
+        # ── HUD ─────────────────────────────────────────
+        draw_hud(frame, fps_display, face_detected, w, h)
+
+        cv2.imshow("AI Driver Monitoring — Day 1-2", frame)
+>>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
