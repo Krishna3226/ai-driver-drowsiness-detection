@@ -1,22 +1,23 @@
 """
 =============================================================
  AI Driver Monitoring System
- DAY 1–2: Async Webcam Thread + MediaPipe Face Topology
+ DAY 4: EAR + MAR + No-Person Interlock
 =============================================================
- Timeline reference: Days 1-2 — Environment & Topology
+ Timeline reference: Day 4 - Yawn Detection and Interlock
  - Async webcam thread (Thread 1)
  - 480p downscale → frame queue
  - MediaPipe 468-point face mesh
  - Map landmark indices for eyes and lips
- - HUD overlay: FPS counter, landmark dots, eye/mouth boxes
+ - EAR drowsiness detection
+ - MAR yawning detection
+ - No-person interlock state
+ - HUD overlay: FPS, landmark dots, EAR, MAR, state ID
 =============================================================
-<<<<<<< HEAD
-DAY3 
-- EAR calculation from eye landmarks
-- Clock based Drowsiness Alert when EAR stays LOW
+DAY4
+- MAR calculation from mouth landmarks
+- Clock based yawning alert when MAR stays high
+- Interlock state when no face is detected
 =============================================================
-=======
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
 """
 
 import cv2
@@ -44,14 +45,23 @@ LIPS      = [61, 146, 91, 181, 84, 17, 314, 405,
 # Nose tip — used later for head pose (PnP)
 NOSE_TIP  = 1
 
-<<<<<<< HEAD
 # EAR THRESHOLDS
 EAR_THRESHOLD= 0.18
 MICROSLEEP_THRESHOLD=0.10
 DROWSY_SECONDS=1.5
 
-=======
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
+MAR_THRESHOLD=0.60
+YAWN_SECONDS=3.0
+ABSENT_SECONDS=1.0
+
+STATE_NORMAL=0
+STATE_YAWNING=1
+STATE_DROWSY=2
+STATE_ABSENT=4
+
+LIGHT_GREEN=(120,255,120)
+LIGHT_GREEN_BOX=(70,255,140)
+NORMAL_GREEN=(0,220,120)
 # ──────────────────────────────────────────────────────────
 # THREAD 1 — SENSOR INGESTION HANDLER
 # Captures raw frames, downscales to 480p, pushes to queue
@@ -118,7 +128,6 @@ def lm_to_px(landmark, w, h):
     """Convert MediaPipe normalised landmark → (x, y) pixel tuple."""
     return int(landmark.x * w), int(landmark.y * h)
 
-<<<<<<< HEAD
 def euclidean_distance(p1,p2):
     return np.linalg.norm(np.array(p1)-np.array(p2))
 
@@ -133,8 +142,21 @@ def eye_aspect_ratio(landmarks,eye_indices,w,h):
         return 0.0
     
     return(vertical_1+vertical_2)/(2.0*horizontal) 
-=======
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
+def mouth_aspect_ratio(landmarks,w,h):
+    """"Calculate MAR using 4 Mouth Landmarks"""
+    top_lip=lm_to_px(landmarks[MOUTH[0]],w,h)
+    bottom_lip=lm_to_px(landmarks[MOUTH[1]],w,h)
+    left_point=lm_to_px(landmarks[MOUTH[2]],w,h)
+    right_point=lm_to_px(landmarks[MOUTH[3]],w,h)
+
+    vertical=euclidean_distance(top_lip,bottom_lip)
+    horizontal=euclidean_distance(left_point,right_point)
+
+    if horizontal==0:
+        return 0.0
+    
+    return vertical/horizontal
+
 
 # ──────────────────────────────────────────────────────────
 # HELPER: draw a labelled landmark group
@@ -153,85 +175,91 @@ def draw_landmark_group(frame, landmarks, indices, w, h, color, label=None):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA)
     return pts
 
-
-# ──────────────────────────────────────────────────────────
-# HELPER: bounding box around a set of points
-# ──────────────────────────────────────────────────────────
-
-def draw_bbox(frame, pts, color, padding=4):
+def draw_bbox(frame,pts,color,padding=4):
     if not pts:
         return
-    xs = [p[0] for p in pts]
-    ys = [p[1] for p in pts]
-    cv2.rectangle(frame,
-                  (min(xs) - padding, min(ys) - padding),
-                  (max(xs) + padding, max(ys) + padding),
-                  color, 1)
+    xs=[p[0] for p in pts]
+    ys=[p[1] for p in pts]
+    cv2.rectangle(
+            frame,
+            (min(xs)-padding,min(ys)-padding),
+            (max(xs)+padding,max(ys)+padding),
+            color,
+            1,
+    )
 
+def draw_top_hud(frame,fps,w):
+    overlay=frame.copy()
+    cv2.rectangle(overlay,(0,0),(w,38) ,(15,15,30),-1)
+    cv2.addWeighted(overlay,0.7,frame,0.3,0,frame)
 
-# ──────────────────────────────────────────────────────────
-# HUD OVERLAY
-# ──────────────────────────────────────────────────────────
+    cv2.putText(
+        frame,
+        "AI DRIVER MONITERING SYSTEM",
+        (10,24),cv2.FONT_HERSHEY_SIMPLEX,0.58,
+        (255,255,255),1,cv2.LINE_AA
+    )
 
-<<<<<<< HEAD
-def draw_hud(frame, fps, face_detected, w, h,driver_state="NORMAL"):
-=======
-def draw_hud(frame, fps, face_detected, w, h):
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
-    # Semi-transparent top bar
+    fps_color=(0,220,120) if fps>=15 else (0,165,255)
+    cv2.putText(
+            frame,f"FPS: {fps:.1f}",
+            (w-110,24),cv2.FONT_HERSHEY_SIMPLEX,0.55,
+            fps_color,1,cv2.LINE_AA
+    )
+
+def draw_bottom_status(frame, status_text, status_color, w, h, state_id):
     overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (w, 38), (15, 15, 30), -1)
-    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
-
-    # Title
-    cv2.putText(frame, "AI DRIVER MONITORING", (10, 24),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-
-    # FPS counter
-    fps_color = (0, 220, 120) if fps >= 20 else (0, 165, 255)
-    cv2.putText(frame, f"FPS: {fps:.1f}", (w - 110, 24),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, fps_color, 1, cv2.LINE_AA)
-
-    # Face detection status
-<<<<<<< HEAD
-
-    # driver_state = 'NORMAL'
-    if not face_detected:
-        status_text = 'NO FACE — INTERLOCK'
-        status_color = (0, 60, 220)
-    elif driver_state == 'DROWSY':
-        status_text='DROWSY ALERT'
-        status_color=(0,165,220)
-    elif driver_state == 'EYES CLOSED':
-        status_text="EYES CLOSED"
-        status_color=(0,165,255)
+    if state_id in (STATE_DROWSY, STATE_ABSENT):
+        bar_color = (20, 20, 140)
+    elif state_id == STATE_YAWNING:
+        bar_color = (20, 80, 130)
     else:
-        status_text="FACE DETECTED"
-        status_color=(0,220,120)
-    overlay2=frame.copy()
-    bar_color=(20,20,120) if status_text in ('NO FACE — INTERLOCK','DROWSY ALERT','EYES CLOSED ALERT') else (20,120,20)
-    cv2.rectangle(overlay2,(0,h - 32),(w,h),bar_color,-1)
-    cv2.addWeighted(overlay2,0.75,frame,0.25,0,frame)
-    cv2.putText(frame,status_text,(10,h - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,0.55,status_color,1,cv2.LINE_AA)
-    
-    # # Day label
-    # cv2.putText(frame, "DAY 1-2: TOPOLOGY", (w - 175, h - 10),
-    #             cv2.FONT_HERSHEY_SIMPLEX, 0.42, (150, 150, 150), 1, cv2.LINE_AA)
-=======
-    status_text  = "FACE DETECTED" if face_detected else "NO FACE — INTERLOCK"
-    status_color = (0, 220, 120)   if face_detected else (0, 60, 220)
-    overlay2 = frame.copy()
-    bar_color = (20, 60, 20) if face_detected else (20, 20, 120)
-    cv2.rectangle(overlay2, (0, h - 32), (w, h), bar_color, -1)
-    cv2.addWeighted(overlay2, 0.75, frame, 0.25, 0, frame)
-    cv2.putText(frame, status_text, (10, h - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_color, 1, cv2.LINE_AA)
+        bar_color = (20, 70, 20)
 
-    # Day label
-    cv2.putText(frame, "DAY 1-2: TOPOLOGY", (w - 175, h - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (150, 150, 150), 1, cv2.LINE_AA)
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
+    cv2.rectangle(overlay, (0, h - 34), (w, h), bar_color, -1)
+    cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
+    cv2.putText(
+        frame, status_text, (10, h - 11),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+        status_color, 1, cv2.LINE_AA
+    )
+    cv2.putText(
+        frame, f"STATE ID: {state_id}",
+        (w - 130, h - 11), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+        (180, 180, 180), 1, cv2.LINE_AA
+    )
+
+def draw_info_panel(frame, lines, w):
+    panel_x = w - 220
+    panel_y = 55
+    line_h = 20
+    overlay = frame.copy()
+    cv2.rectangle(
+        overlay,
+        (panel_x - 8, panel_y - 18),
+        (w - 4, panel_y + len(lines) * line_h + 4),
+        (15, 15, 30),
+        -1,
+    )
+    cv2.addWeighted(overlay, 0.72, frame, 0.28, 0, frame)
+
+    for i, (txt, col) in enumerate(lines):
+        cv2.putText(
+            frame, txt, (panel_x, panel_y + i * line_h),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.38,
+            col, 1, cv2.LINE_AA
+        )
+
+def resolve_state(face_detected,absent_duration,drowsy_alert,yawn_alert):
+    if not face_detected and absent_duration >=ABSENT_SECONDS:
+        return STATE_ABSENT,"DRIVER ABSENT - INTERLOCK",(0,60,255)
+    if drowsy_alert:
+        return STATE_DROWSY,"DROWSY ALERT",(0,60,255)
+    if yawn_alert:
+        return STATE_YAWNING,"YAWNING ALERT",(0,165,255)
+    if not face_detected:
+        return STATE_ABSENT,"NO FACE DETECTED",(0,165,255)
+    return STATE_NORMAL,"ALERT / NORMAL",NORMAL_GREEN
 
 
 # ──────────────────────────────────────────────────────────
@@ -239,14 +267,14 @@ def draw_hud(frame, fps, face_detected, w, h):
 # ──────────────────────────────────────────────────────────
 
 def main():
-    print("="*55)
-    print(" AI Driver Monitoring — Day 1-2")
-    print(" Webcam thread + MediaPipe face mesh + HUD")
-    print("="*55)
+    print("="*60)
+    print(" AI Driver Monitoring System")
+    print(" EAR + MAR + NO-PERSON INTERLOCK")
+    print("="*60)
     print(" Controls:")
     print("   Q  — quit")
     print("   M  — toggle full mesh overlay")
-    print("="*55)
+    print("="*60)
 
     capture = CaptureThread(src=0)
     capture.start()
@@ -255,11 +283,13 @@ def main():
     fps_timer   = time.time()
     fps_counter = 0
     fps_display = 0.0
-<<<<<<< HEAD
+
     eye_closed_since=None
+    mouth_open_since=None
+    no_face_since=None
+
     drowsy_alert=False
-=======
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
+    yawn_alert=False
 
     while True:
         frame = capture.get_frame()
@@ -279,16 +309,18 @@ def main():
         # ── MediaPipe inference ──────────────────────────
         rgb   = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = face_mesh.process(rgb)
-
         face_detected = result.multi_face_landmarks is not None
-<<<<<<< HEAD
+
         avg_ear = None
+        mar=None
         eye_state = "NO FACE"
+        mouth_state="NO FACE"
         closed_duration=0.0
-=======
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
+        yawn_duration=0.0
+        absent_duration=0.0
 
         if face_detected:
+            no_face_since=None
             lms = result.multi_face_landmarks[0].landmark
 
             # Optional: full mesh overlay
@@ -305,14 +337,13 @@ def main():
             # ── Eye landmarks (EAR points — used from Day 3) ──
             le_pts = draw_landmark_group(
                 frame, lms, LEFT_EYE,  w, h,
-                color=(0, 220, 120), label="L-EYE")
+                color=LIGHT_GREEN, label="L-EYE")
             re_pts = draw_landmark_group(
                 frame, lms, RIGHT_EYE, w, h,
-                color=(0, 220, 120), label="R-EYE")
-            draw_bbox(frame, le_pts, (0, 200, 100))
-            draw_bbox(frame, re_pts, (0, 200, 100))
+                color=LIGHT_GREEN, label="R-EYE")
+            draw_bbox(frame, le_pts, LIGHT_GREEN_BOX)
+            draw_bbox(frame, re_pts, LIGHT_GREEN_BOX)
 
-<<<<<<< HEAD
             left_ear=eye_aspect_ratio(lms,LEFT_EYE,w,h)
             right_ear=eye_aspect_ratio(lms,RIGHT_EYE,w,h)
             avg_ear=(left_ear+right_ear)/2.0
@@ -328,13 +359,27 @@ def main():
                 drowsy_alert=False
                 eye_state="EYES OPEN"
 
-=======
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
             # ── Mouth landmarks (MAR points — used from Day 4) ──
-            m_pts = draw_landmark_group(
-                frame, lms, LIPS, w, h,
-                color=(0, 165, 255), label="MOUTH")
-            draw_bbox(frame, m_pts, (0, 140, 220))
+
+            lip_pts=draw_landmark_group(frame,lms,LIPS,w,h,(0,165,255),"MOUTH")
+            key_mouth_pts=draw_landmark_group(frame,lms,MOUTH,w,h,(0,255,255))
+            draw_bbox(frame,lip_pts,(0,140,200))
+            mar=mouth_aspect_ratio(lms,w,h)
+
+            if mar > MAR_THRESHOLD:
+                if mouth_open_since is None:
+                    mouth_open_since =time.time()
+                yawn_duration=time.time() - mouth_open_since
+                yawn_alert = yawn_duration>=YAWN_SECONDS
+                mouth_state="YAWNING" if yawn_alert else "MOUTH OPEN"
+            else:
+                mouth_open_since=None
+                yawn_alert=False
+                mouth_state="NORMAL"
+
+            if len(key_mouth_pts)==4:
+                cv2.line(frame,key_mouth_pts[0],key_mouth_pts[1],(0,255,255),1)
+                cv2.line(frame,key_mouth_pts[2],key_mouth_pts[3],(0,255,255),1)
 
             # ── Nose tip (PnP reference — used from Day 5) ──
             nx, ny = lm_to_px(lms[NOSE_TIP], w, h)
@@ -342,62 +387,71 @@ def main():
             cv2.putText(frame, "NOSE", (nx + 5, ny - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 80, 255),
                         1, cv2.LINE_AA)
-
-            # ── Info panel (right side) ──────────────────────
-            info_lines = [
-<<<<<<< HEAD
-                                
-                ("468 landmarks: OK",  (0, 220, 120)),
-                (f"EAR: {avg_ear:.2f}", (0, 220, 120) if avg_ear >= EAR_THRESHOLD else (0, 165, 255)),
-                (f"Eyes: {eye_state}",  (0, 220, 120) if eye_state == "EYES OPEN" else (0, 165, 255)),
-                (f"Closed: {closed_duration:.1f}s", (150, 150, 150)),
-                ("DROWSY ALERT" if drowsy_alert else "Status: normal",
-                 (0, 60, 220) if drowsy_alert else (0, 220, 120))
-=======
-                ("DAY 1-2 COMPLETE",   (200, 200, 200)),
-                ("468 landmarks: OK",  (0, 220, 120)),
-                ("Eye indices: ready", (0, 220, 120)),
-                ("Mouth indices: ready",(0, 165, 255)),
-                ("Nose tip: ready",    (200, 80, 255)),
-                ("Next: EAR (Day 3)",  (150, 150, 150)),
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
-            ]
-            panel_x = w - 200
-            panel_y = 50
-            overlay3 = frame.copy()
-            cv2.rectangle(overlay3,
-                          (panel_x - 8, panel_y - 18),
-                          (w - 4, panel_y + len(info_lines) * 20 + 4),
-                          (15, 15, 30), -1)
-            cv2.addWeighted(overlay3, 0.7, frame, 0.3, 0, frame)
-            for i, (txt, col) in enumerate(info_lines):
-                cv2.putText(frame, txt,
-                            (panel_x, panel_y + i * 20),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.38, col, 1, cv2.LINE_AA)
-<<<<<<< HEAD
-            if drowsy_alert:
-                cv2.putText(frame,"DROWSY ALERT",
-                            (w//2-120,75),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.9,(0,60,255),2,cv2.LINE_AA)
-
-        # ── HUD ─────────────────────────────────────────
-        if not face_detected:
+            
+        else:
             eye_closed_since=None
+            mouth_open_since=None
             drowsy_alert=False
-        
-        draw_hud(frame, fps_display, face_detected, w, h,
-                 "DROWSY" if drowsy_alert else eye_state)
+            yawn_alert=False
 
-        cv2.imshow("AI Driver Monitoring ", frame)
-=======
+            if no_face_since is None:
+                no_face_since=time.time()
+            absent_duration=time.time() - no_face_since
 
-        # ── HUD ─────────────────────────────────────────
-        draw_hud(frame, fps_display, face_detected, w, h)
+        state_id, status_text, status_color = resolve_state(
+            face_detected, absent_duration, drowsy_alert, yawn_alert
+        )
 
-        cv2.imshow("AI Driver Monitoring — Day 1-2", frame)
->>>>>>> 24d7b1db232173575070297d019def450a2acc7f
+        lines = [
+            ("EAR + MAR + INTERLOCK", (200, 200, 200)),
+            
+            ("Face: detected" if face_detected else "Face: not detected",
+             NORMAL_GREEN if face_detected else (0, 165, 255)),
+            
+            (f"EAR: {avg_ear:.2f}" if avg_ear is not None else "EAR: --",
+             NORMAL_GREEN if avg_ear is not None and avg_ear >= EAR_THRESHOLD else (0, 165, 255)),
+           
+            (f"MAR: {mar:.2f}" if mar is not None else "MAR: --",
+             NORMAL_GREEN if mar is not None and mar <= MAR_THRESHOLD else (0, 165, 255)),
+           
+            (f"Eyes: {eye_state}", NORMAL_GREEN if eye_state == "EYES OPEN" else (0, 165, 255)),
+           
+            (f"Mouth: {mouth_state}", NORMAL_GREEN if mouth_state == "NORMAL" else (0, 165, 255)),
+           
+            (f"Yawn timer: {yawn_duration:.1f}s", (150, 150, 150)),
+           
+            (f"Absent timer: {absent_duration:.1f}s", (150, 150, 150)),
+           
+            (f"State ID: {state_id}", status_color),
+        ]
+
+        draw_top_hud(frame, fps_display, w)
+        draw_info_panel(frame, lines, w)
+        draw_bottom_status(frame, status_text, status_color, w, h, state_id)
+
+        if yawn_alert:
+            cv2.putText(
+                frame, "YAWNING DETECTED",
+                (w // 2 - 145, 75),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.85,
+                (0, 165, 255), 2, cv2.LINE_AA
+            )
+        elif drowsy_alert:
+            cv2.putText(
+                frame, "DROWSY ALERT",
+                (w // 2 - 120, 75),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9,
+                (0, 60, 255), 2, cv2.LINE_AA
+            )
+        elif state_id == STATE_ABSENT and absent_duration >= ABSENT_SECONDS:
+            cv2.putText(
+                frame, "SYSTEM INTERLOCK",
+                (w // 2 - 150, 75),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.85,
+                (0, 60, 255), 2, cv2.LINE_AA
+            )
+
+        cv2.imshow("AI Driver Monitoring - Day 4 MAR", frame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):

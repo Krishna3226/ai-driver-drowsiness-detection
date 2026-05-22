@@ -1,4 +1,9 @@
-"venv/" 
-".venv/" 
-"venv/" 
-".venv/" 
+venv/
+.venv/
+.python312/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+python-*.exe
+*.log

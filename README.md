@@ -1,6 +1,6 @@
 # AI Driver Drowsiness Detection System
 
-An AI-based driver monitoring project that uses a webcam and MediaPipe Face Mesh to track facial landmarks in real time. The current implementation covers the Day 3 milestone: webcam capture, face detection, landmark topology visualization, and Eye Aspect Ratio (EAR) based drowsiness detection.
+An AI-based driver monitoring project that uses a webcam and MediaPipe Face Mesh to track facial landmarks in real time. The current implementation covers the Day 4 milestone: webcam capture, face detection, landmark topology visualization, Eye Aspect Ratio (EAR) drowsiness detection, Mouth Aspect Ratio (MAR) yawning detection, and no-person interlock status.
 
 ## Current Status
 
@@ -14,12 +14,14 @@ Completed:
 - Live Eye Aspect Ratio (EAR) calculation
 - Clock-based drowsiness alert when EAR remains below threshold
 - Mouth landmark mapping for future MAR/yawn detection
+- Live Mouth Aspect Ratio (MAR) calculation
+- Clock-based yawning alert when MAR remains above threshold
+- No-face/operator-absent interlock state
 - Nose tip tracking for future head pose estimation
 - HUD overlay with FPS, face status, and landmark boxes
 
 Planned next:
 
-- Day 4: Mouth Aspect Ratio (MAR) for yawning detection
 - Day 5: Head pose estimation using OpenCV solvePnP
 - Later: audio alerts, no-person interlock, database logging, and dashboard analytics
 
@@ -38,7 +40,8 @@ The goal of this system is to detect unsafe driver states such as drowsiness, ya
 ## Repository Files
 
 ```text
-face_topology.py    # Webcam + MediaPipe landmarks + Day 3 EAR detection
+face_topology.py    # Main Day 4 file: EAR + MAR + no-person interlock
+DAY4.py             # Separate Day 4 backup/alternate file
 README.md           # Project overview and setup guide
 ```
 
@@ -91,13 +94,17 @@ The program opens a webcam window and displays:
 - Face detection status
 - FPS counter
 - Eye landmark boxes
+- Brighter light-green eye landmark dots for better visibility
 - Live EAR value
 - Eye state: open, closed, or drowsy alert
 - Mouth landmark box
+- Live MAR value
+- Mouth state: normal, mouth open, or yawning detected
+- No-face interlock state
 - Nose tip point
-- Day 1-2 topology HUD
+- Day 4 status HUD
 
-If the face is detected, landmarks are visible, and the EAR value updates live, the Day 3 milestone is working correctly.
+If the face is detected, landmarks are visible, and the EAR/MAR values update live, the Day 4 milestone is working correctly.
 
 ## Detection Roadmap
 
@@ -115,7 +122,3 @@ If the face is detected, landmarks are visible, and the EAR value updates live, 
 - Keep the virtual environment active while running the project.
 - If `mp.solutions` gives an error, check that you are using the correct virtual environment and Python 3.12.
 - Low lighting can reduce landmark accuracy. A front-facing light improves detection.
-
-## Author
-
-Krishna
